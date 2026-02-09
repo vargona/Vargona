@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#2563eb">
+<title>Vargona Invoice Generator</title>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --primary: #2563eb;
+    --border: #e5e7eb;
+    --text: #374151;
+    --bg: #f9fafb;
+    --success: #10b981;
+  }
+  body { 
+    font-family: system-ui, -apple-system, sans-serif; 
+    margin: 0; 
+    padding: 12px; 
+    background: var(--bg); 
+    color: var(--text);
+  }
+  .page { 
+    background: #fff; 
+    padding: 16px; 
+    max-width: 900px; 
+    margin: auto; 
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
+    border-radius: 8px;
+  }
+  h1 { font-size: 24px; margin: 0 0 12px; font-weight: 700; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .card { border: 1px solid var(--border); padding: 10px; border-radius: 6px; }
+  .card strong { display: block; margin-bottom: 8px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; }
+  label { display: flex; align-items: center; gap: 10px; margin: 5px 0; font-size: 13px; }
+  label span { min-width: 100px; color: #6b7280; }
+  input { 
+    flex: 1; 
+    padding: 6px 8px; 
+    border: 1px solid var(--border); 
+    border-radius: 4px; 
+    font-size: 14px;
+    transition: border-color 0.2s;
+  }
+  input:focus { outline: none; border-color: var(--primary); }
+  input[readonly] { background: #f9fafb; cursor: not-allowed; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+  th, td { border: 1px solid var(--border); padding: 6px 8px; font-size: 13px; }
+  th { background: #f9fafb; font-weight: 600; text-align: left; }
+  td input { border: none; padding: 4px; width: 100%; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .actions { display: flex; gap: 8px; margin-bottom: 10px; }
+  button { 
+    border: none; 
+    background: var(--primary); 
+    color: #fff; 
+    padding: 8px 14px; 
+    border-radius: 6px; 
+    cursor: pointer; 
+    font-weight: 600; 
+    font-size: 13px;
+    transition: background 0.2s;
+  }
+  button:hover { background: #1d4ed8; }
+  button.secondary { background: #fff; color: var(--primary); border: 1px solid var(--primary); }
+  button.secondary:hover { background: #eff6ff; }
+  button.danger { background: #ef4444; }
+  button.danger:hover { background: #dc2626; }
+  .totals { 
+    max-width: 350px; 
+    margin-left: auto; 
+    border: 2px solid var(--border); 
+    border-radius: 6px; 
+    padding: 10px; 
+    background: #fafafa;
+  }
+  .totals .row { display: flex; justify-content: space-between; margin: 5px 0; align-items: center; }
+  .totals .row.grand { 
+    border-top: 2px solid var(--border); 
+    padding-top: 8px; 
+    margin-top: 8px; 
+    font-weight: 700; 
+    font-size: 16px;
+  }
+  .totals input { max-width: 140px; text-align: right; }
+  @media (max-width: 768px) {
+    body { padding: 8px; }
+    .page { padding: 12px; }
+    h1 { font-size: 20px; }
+    .grid { grid-template-columns: 1fr; gap: 8px; }
+    .actions { flex-wrap: wrap; }
+    button { padding: 10px 12px; font-size: 12px; }
+    label { flex-direction: column; align-items: flex-start; }
+    label span { min-width: auto; }
+    table { font-size: 11px; }
+    th, td { padding: 4px; }
+    td input { font-size: 12px; }
+    .totals { max-width: 100%; margin-top: 12px; }
+  }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .page { box-shadow: none; padding: 8px; }
+    .actions, button, #archiveModal { display: none !important; }
+    .no-print { display: none !important; }
+    h1 { text-align: center; font-size: 26px; margin-bottom: 8px; }
+    .print-header { display: block !important; text-align: center; margin-bottom: 12px; }
+    .grid { gap: 8px; margin-bottom: 8px; }
+    .card { padding: 8px; }
+    .card strong { font-size: 12px; margin-bottom: 6px; }
+    label { margin: 3px 0; }
+    input { border: none !important; background: transparent !important; padding: 2px !important; font-size: 12px; }
+    table { margin: 6px 0; }
+    th, td { padding: 4px 6px; font-size: 12px; }
+    th:last-child, td:last-child { display: none !important; }
+    .totals { padding: 8px; }
+    .totals .row { margin: 3px 0; font-size: 13px; }
+    .totals .row.grand { padding-top: 6px; margin-top: 6px; font-size: 15px; }
+    table { page-break-inside: auto; }
+    tr { page-break-inside: avoid; page-break-after: auto; }
+  }
+  .print-header { display: none; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>INVOICE</h1>
+  
+  <div class="actions">
+    <button id="addRowBtn">➕ Add Item</button>
+    <button class="secondary" id="clearRowsBtn">🗑️ Clear All</button>
+    <button class="secondary" id="archiveBtn">📁 View Archive</button>
+    <button class="secondary" id="importBtn">📂 Import Invoice</button>
+    <button class="secondary" id="saveBtn">💾 Save to Archive</button>
+    <button class="secondary" onclick="window.print()">🖨️ Print</button>
+  </div>
+  
+  <div class="no-print" style="background:#fef3c7; border:1px solid #fbbf24; padding:12px; border-radius:6px; margin-bottom:16px; font-size:13px;">
+    ⚠️ <strong>Archive Location:</strong> Save invoices to <code style="background:#fff; padding:2px 6px; border-radius:3px;">archive/</code> folder for easy sharing across devices
+  </div>
+  
+  <div id="archiveModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:1000; padding:20px; overflow:auto;">
+    <div style="background:white; max-width:900px; margin:auto; padding:24px; border-radius:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h2 style="margin:0;">Invoice Archive</h2>
+        <button onclick="closeArchive()" style="background:#ef4444;">✕ Close</button>
+      </div>
+      <div id="archiveList"></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <strong>From (Seller)</strong>
+      <label><span>Name</span><input id="seller_name" type="text" value="Vargona"></label>
+      <label><span>Managed By</span><input id="seller_managed" type="text" value="Ankchansh Aluminium"></label>
+      <label><span>GSTIN</span><input id="seller_gstin" type="text"></label>
+      <label><span>Address</span><input id="seller_address" type="text"></label>
+    </div>
+
+    <div class="card">
+      <strong>Invoice Info</strong>
+      <label><span>Invoice #</span><input id="inv_number" type="text" readonly style="background:#f0f9ff; font-weight:600;"></label>
+      <label><span>Date</span><input id="inv_date" type="date"></label>
+      <label><span>Vehicle #</span><input id="inv_vehicle" type="text"></label>
+    </div>
+  </div>
+  
+  <div class="grid">
+    <div class="card">
+      <strong>Bill To (Buyer)</strong>
+      <label><span>Name</span><input id="buyer_name" type="text"></label>
+      <label><span>GSTIN</span><input id="buyer_gstin" type="text"></label>
+      <label><span>Address</span><input id="buyer_address" type="text"></label>
+    </div>
+
+    <div class="card">
+      <strong>Ship To (Consignee) <label class="no-print" style="display:inline; float:right; font-weight:normal; font-size:12px;"><input type="checkbox" id="sameAsBillTo" style="margin-left:8px;"> Same as Bill To</label></strong>
+      <label><span>Name</span><input id="consignee_name" type="text"></label>
+      <label><span>GSTIN</span><input id="consignee_gstin" type="text"></label>
+      <label><span>Address</span><input id="consignee_address" type="text"></label>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 20px;">
+    <strong>Items</strong>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40px">#</th>
+          <th>Item Description</th>
+          <th class="num" style="width:90px">Thickness</th>
+          <th class="num" style="width:100px">Quantity</th>
+          <th style="width:80px">Unit</th>
+          <th class="num" style="width:120px">Rate</th>
+          <th class="num" style="width:140px">Amount</th>
+          <th style="width:60px"></th>
+        </tr>
+      </thead>
+      <tbody id="itemsBody"></tbody>
+    </table>
+  </div>
+
+  <div class="totals">
+    <div class="row">
+      <span>Subtotal:</span>
+      <input id="subTotal" type="number" readonly>
+    </div>
+    <div class="row">
+      <span>Discount:</span>
+      <input id="roundOff" type="number" step="0.01" value="0">
+    </div>
+    <div class="row grand">
+      <span>Grand Total:</span>
+      <input id="grandTotal" type="number" readonly>
+    </div>
+    <div class="no-print" style="text-align:center; margin-top:12px; padding:8px; background:#f0f9ff; border-radius:4px; font-size:13px; color:#1e40af; font-weight:600;">
+      ✓ All prices are inclusive of GST
+    </div>
+  </div>
+  
+  <div class="print-header" style="margin-top:30px; padding-top:20px; border-top:1px solid #e5e7eb; text-align:center; font-size:11px; color:#666;">
+    <p style="margin:5px 0;">This is a computer generated e-Invoice</p>
+    <p style="margin:5px 0;">No signature required</p>
+  </div>
+</div>
+
+<script>
+  // Utility
+  const $ = id => document.getElementById(id);
+  
+  // Archive Management
+  const ARCHIVE_KEY = 'vargona_invoice_archive';
+  const COUNTER_KEY = 'vargona_invoice_counter';
+  
+  function getArchive() {
+    return JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]');
+  }
+  
+  function saveToArchive(invoice) {
+    const archive = getArchive();
+    const existing = archive.findIndex(inv => inv.invoice.number === invoice.invoice.number);
+    if (existing >= 0) {
+      archive[existing] = invoice;
+    } else {
+      archive.push(invoice);
+    }
+    localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archive));
+  }
+  
+  function getNextInvoiceNumber() {
+    let counter = parseInt(localStorage.getItem(COUNTER_KEY) || '1039');
+    return `VRG-${counter}`;
+  }
+  
+  function incrementInvoiceNumber() {
+    let counter = parseInt(localStorage.getItem(COUNTER_KEY) || '1039');
+    counter++;
+    localStorage.setItem(COUNTER_KEY, counter.toString());
+    return `VRG-${counter}`;
+  }
+  
+  function getTodayDate() {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  }
+  
+  function showArchive() {
+    const archive = getArchive();
+    const modal = $('archiveModal');
+    const list = $('archiveList');
+    
+    if (archive.length === 0) {
+      list.innerHTML = `
+        <p style="text-align:center; color:#666; padding:40px;">No invoices in archive yet.</p>
+        <p style="text-align:center; color:#666; font-size:13px;">Invoices are saved as JSON files in the <code>archive/</code> folder.<br>Use "📂 Import Invoice" to load them.</p>
+      `;
+    } else {
+      list.innerHTML = `
+        <div style="background:#eff6ff; border:1px solid #3b82f6; padding:10px; border-radius:6px; margin-bottom:16px; font-size:13px;">
+          📊 Showing recent invoices. All invoices are saved as JSON files in <code>archive/</code> folder.
+        </div>
+        <table style="width:100%; border-collapse:collapse;">
+          <thead>
+            <tr style="background:#f9fafb;">
+              <th style="padding:10px; border:1px solid #e5e7eb; text-align:left;">Invoice #</th>
+              <th style="padding:10px; border:1px solid #e5e7eb; text-align:left;">Date</th>
+              <th style="padding:10px; border:1px solid #e5e7eb; text-align:left;">Buyer</th>
+              <th style="padding:10px; border:1px solid #e5e7eb; text-align:right;">Total</th>
+              <th style="padding:10px; border:1px solid #e5e7eb; text-align:center;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${archive.reverse().map((inv, idx) => `
+              <tr>
+                <td style="padding:10px; border:1px solid #e5e7eb;">${inv.invoice.number}</td>
+                <td style="padding:10px; border:1px solid #e5e7eb;">${inv.invoice.date}</td>
+                <td style="padding:10px; border:1px solid #e5e7eb;">${inv.buyer.name}</td>
+                <td style="padding:10px; border:1px solid #e5e7eb; text-align:right; font-weight:600;">₹${calculateTotal(inv).toFixed(2)}</td>
+                <td style="padding:10px; border:1px solid #e5e7eb; text-align:center;">
+                  <button onclick="loadFromArchive('${inv.invoice.number}')" class="secondary" style="padding:6px 12px; font-size:12px;">📝 Edit</button>
+                  <button onclick="downloadInvoiceJson('${inv.invoice.number}')" class="secondary" style="padding:6px 12px; font-size:12px;">💾</button>
+                  <button onclick="deleteFromArchive('${inv.invoice.number}')" class="danger" style="padding:6px 12px; font-size:12px;">🗑️</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <div style="margin-top:16px; text-align:center;">
+          <button onclick="exportAllInvoices()" class="secondary">📥 Export All to JSON Files</button>
+        </div>
+      `;
+    }
+    modal.style.display = 'block';
+  }
+  
+  function closeArchive() {
+    $('archiveModal').style.display = 'none';
+  }
+  
+  function loadFromArchive(invoiceNumber) {
+    const archive = getArchive();
+    const invoice = archive.find(inv => inv.invoice.number === invoiceNumber);
+    if (invoice) {
+      loadData(invoice);
+      closeArchive();
+    }
+  }
+  
+  function deleteFromArchive(invoiceNumber) {
+    if (confirm(`Delete invoice ${invoiceNumber}?`)) {
+      let archive = getArchive();
+      archive = archive.filter(inv => inv.invoice.number !== invoiceNumber);
+      localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archive));
+      showArchive();
+    }
+  }
+  
+  function calculateTotal(invoice) {
+    const subtotal = (invoice.items || []).reduce((sum, item) => sum + (item.amount || 0), 0);
+    return subtotal - (invoice.roundOff || 0);
+  }
+  
+  function downloadInvoiceJson(invoiceNumber) {
+    const archive = getArchive();
+    const invoice = archive.find(inv => inv.invoice.number === invoiceNumber);
+    if (invoice) {
+      const json = JSON.stringify(invoice, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${invoice.invoice.number}_${invoice.invoice.date}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      alert(`Invoice ${invoiceNumber} downloaded!\n\nPlease save it to the 'archive' folder.`);
+    }
+  }
+  
+  function exportAllInvoices() {
+    const archive = getArchive();
+    if (archive.length === 0) {
+      alert('No invoices to export!');
+      return;
+    }
+    
+    let count = 0;
+    archive.forEach((invoice, index) => {
+      setTimeout(() => {
+        const json = JSON.stringify(invoice, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${invoice.invoice.number}_${invoice.invoice.date}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        count++;
+        
+        if (count === archive.length) {
+          alert(`Exported ${count} invoices!\n\nPlease save them to the 'archive' folder.`);
+        }
+      }, index * 500); // Delay each download by 500ms
+    });
+  }
+  
+  // Add new item row
+  function addRow(item = {}) {
+    const tbody = $('itemsBody');
+    const tr = document.createElement('tr');
+    const idx = tbody.children.length + 1;
+    
+    tr.innerHTML = `
+      <td class="num">${idx}</td>
+      <td><input type="text" value="${item.description || ''}" class="desc"></td>
+      <td class="num"><input type="number" value="${item.thickness || ''}" step="0.1" class="thickness" placeholder="mm"></td>
+      <td class="num"><input type="number" value="${item.qty || 1}" step="0.01" class="qty"></td>
+      <td><input type="text" value="${item.unit || 'pcs'}" class="unit"></td>
+      <td class="num"><input type="number" value="${item.rate || 0}" step="0.01" class="rate"></td>
+      <td class="num"><input type="number" value="${item.amount || 0}" step="0.01" class="amount" readonly></td>
+      <td><button class="danger" onclick="removeRow(this)">✕</button></td>
+    `;
+    
+    tbody.appendChild(tr);
+    
+    // Auto-calculate on input
+    const qty = tr.querySelector('.qty');
+    const rate = tr.querySelector('.rate');
+    const amount = tr.querySelector('.amount');
+    
+    const calc = () => {
+      amount.value = (parseFloat(qty.value || 0) * parseFloat(rate.value || 0)).toFixed(2);
+      recalcTotal();
+    };
+    
+    qty.oninput = calc;
+    rate.oninput = calc;
+    calc();
+  }
+  
+  // Remove row
+  function removeRow(btn) {
+    btn.closest('tr').remove();
+    renumber();
+    recalcTotal();
+  }
+  
+  // Renumber rows
+  function renumber() {
+    [...$('itemsBody').children].forEach((tr, i) => {
+      tr.children[0].textContent = i + 1;
+    });
+  }
+  
+  // Recalculate totals
+  function recalcTotal() {
+    const rows = [...$('itemsBody').children];
+    const subtotal = rows.reduce((sum, tr) => 
+      sum + parseFloat(tr.querySelector('.amount').value || 0), 0);
+    
+    const discount = parseFloat($('roundOff').value || 0);
+    
+    $('subTotal').value = subtotal.toFixed(2);
+    $('grandTotal').value = (subtotal - discount).toFixed(2);
+  }
+  
+  // Get all data
+  function getData() {
+    return {
+      seller: {
+        name: $('seller_name').value,
+        managed: $('seller_managed').value,
+        gstin: $('seller_gstin').value,
+        address: $('seller_address').value
+      },
+      buyer: {
+        name: $('buyer_name').value,
+        gstin: $('buyer_gstin').value,
+        address: $('buyer_address').value
+      },
+      consignee: {
+        name: $('consignee_name').value,
+        gstin: $('consignee_gstin').value,
+        address: $('consignee_address').value
+      },
+      invoice: {
+        number: $('inv_number').value,
+        date: $('inv_date').value,
+        vehicle: $('inv_vehicle').value
+      },
+      items: [...$('itemsBody').children].map(tr => ({
+        description: tr.querySelector('.desc').value,
+        thickness: tr.querySelector('.thickness').value,
+        qty: parseFloat(tr.querySelector('.qty').value || 0),
+        unit: tr.querySelector('.unit').value,
+        rate: parseFloat(tr.querySelector('.rate').value || 0),
+        amount: parseFloat(tr.querySelector('.amount').value || 0)
+      })),
+      roundOff: parseFloat($('roundOff').value || 0)
+    };
+  }
+  
+  // Load data
+  function loadData(data) {
+    if (!data) return;
+    
+    $('seller_name').value = data.seller?.name || 'Vargona';
+    $('seller_managed').value = data.seller?.managed || 'Ankchansh Aluminium';
+    $('seller_gstin').value = data.seller?.gstin || '';
+    $('seller_address').value = data.seller?.address || '';
+    $('buyer_name').value = data.buyer?.name || '';
+    $('buyer_gstin').value = data.buyer?.gstin || '';
+    $('buyer_address').value = data.buyer?.address || '';
+    $('consignee_name').value = data.consignee?.name || '';
+    $('consignee_gstin').value = data.consignee?.gstin || '';
+    $('consignee_address').value = data.consignee?.address || '';
+    $('inv_number').value = data.invoice?.number || '';
+    $('inv_date').value = data.invoice?.date || '';
+    $('inv_vehicle').value = data.invoice?.vehicle || '';
+    
+    $('itemsBody').innerHTML = '';
+    (data.items || []).forEach(addRow);
+    
+    $('roundOff').value = data.roundOff || 0;
+    
+    recalcTotal();
+  }
+  
+  // Event listeners
+  $('addRowBtn').onclick = () => addRow();
+  $('clearRowsBtn').onclick = () => {
+    if (confirm('Clear all items?')) {
+      $('itemsBody').innerHTML = '';
+      recalcTotal();
+    }
+  };
+  
+  $('saveBtn').onclick = () => {
+    const data = getData();
+    if (!data.invoice.number) {
+      alert('Invoice number is missing!');
+      return;
+    }
+    
+    // Save to localStorage for quick viewing
+    saveToArchive(data);
+    
+    // Download JSON file to archive folder
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `archive/${data.invoice.number}_${data.invoice.date}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    alert(`Invoice ${data.invoice.number} saved!\n\nPlease save the file to the 'archive' folder in your project.`);
+    
+    // Auto-generate next invoice number for new invoice
+    $('inv_number').value = incrementInvoiceNumber();
+    $('inv_date').value = getTodayDate();
+  };
+  
+  $('importBtn').onclick = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json';
+    input.multiple = false;
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const data = JSON.parse(event.target.result);
+            loadData(data);
+            // Also save to localStorage
+            saveToArchive(data);
+            alert(`Invoice ${data.invoice?.number || 'Unknown'} loaded successfully!`);
+          } catch (err) {
+            alert('Error loading invoice file: ' + err.message);
+          }
+        };
+        reader.readAsText(file);
+      }
+    };
+    input.click();
+  };
+  
+  $('archiveBtn').onclick = showArchive;
+  
+  // Round off change listener
+  $('roundOff').oninput = recalcTotal;
+  
+  // Same as Bill To functionality
+  function copyBillToToShipTo() {
+    if ($('sameAsBillTo').checked) {
+      $('consignee_name').value = $('buyer_name').value;
+      $('consignee_gstin').value = $('buyer_gstin').value;
+      $('consignee_address').value = $('buyer_address').value;
+      $('consignee_name').readOnly = true;
+      $('consignee_gstin').readOnly = true;
+      $('consignee_address').readOnly = true;
+    } else {
+      $('consignee_name').readOnly = false;
+      $('consignee_gstin').readOnly = false;
+      $('consignee_address').readOnly = false;
+    }
+  }
+  
+  $('sameAsBillTo').onchange = copyBillToToShipTo;
+  $('buyer_name').oninput = () => { if ($('sameAsBillTo').checked) copyBillToToShipTo(); };
+  $('buyer_gstin').oninput = () => { if ($('sameAsBillTo').checked) copyBillToToShipTo(); };
+  $('buyer_address').oninput = () => { if ($('sameAsBillTo').checked) copyBillToToShipTo(); };
+  
+  // Initialize with auto invoice number and date
+  $('inv_number').value = getNextInvoiceNumber();
+  $('inv_date').value = getTodayDate();
+  addRow();
+</script>
+</body>
+</html>
+``
